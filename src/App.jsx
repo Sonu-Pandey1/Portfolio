@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-const themes = ["aurora", "ember", "ocean", "lime", "mono"];
+const themes = ["aurora", "ember", "ocean", "lime", "mono", "noir"];
 
 const stats = [
   { value: "2+", label: "Years of coding practice" },
@@ -162,17 +162,27 @@ const themeLabels = {
   ocean: "Ocean",
   lime: "Lime",
   mono: "Mono",
+  noir: "Noir",
 };
 
 function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem("portfolio-theme") || "aurora");
   const [activeProject, setActiveProject] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
   const canvasRef = useRef(null);
+  const heroRef = useRef(null);
+  const cursorDotRef = useRef(null);
+  const cursorRingRef = useRef(null);
 
   useEffect(() => {
     document.body.dataset.theme = theme;
     localStorage.setItem("portfolio-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    document.body.classList.toggle("menu-open", menuOpen);
+    return () => document.body.classList.remove("menu-open");
+  }, [menuOpen]);
 
   useEffect(() => {
     const items = document.querySelectorAll(".reveal");
@@ -219,6 +229,91 @@ function App() {
         card.removeEventListener("mousemove", onMove);
         card.removeEventListener("mouseleave", onLeave);
       });
+    };
+  }, []);
+
+  useEffect(() => {
+    const parallaxItems = document.querySelectorAll("[data-parallax]");
+
+    function updateParallax() {
+      const scrollY = window.scrollY;
+
+      parallaxItems.forEach((item) => {
+        const speed = Number(item.getAttribute("data-parallax")) || 0.08;
+        item.style.transform = `translate3d(0, ${scrollY * speed}px, 0)`;
+      });
+
+      if (heroRef.current) {
+        heroRef.current.style.setProperty("--hero-shift", `${Math.min(scrollY * 0.12, 48)}px`);
+      }
+    }
+
+    updateParallax();
+    window.addEventListener("scroll", updateParallax, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", updateParallax);
+    };
+  }, []);
+
+  useEffect(() => {
+    const dot = cursorDotRef.current;
+    const ring = cursorRingRef.current;
+    if (!dot || !ring || window.matchMedia("(pointer: coarse)").matches) {
+      return undefined;
+    }
+
+    let ringX = window.innerWidth / 2;
+    let ringY = window.innerHeight / 2;
+    let mouseX = ringX;
+    let mouseY = ringY;
+    let frameId = 0;
+
+    function animate() {
+      ringX += (mouseX - ringX) * 0.18;
+      ringY += (mouseY - ringY) * 0.18;
+      dot.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0)`;
+      ring.style.transform = `translate3d(${ringX}px, ${ringY}px, 0)`;
+      frameId = window.requestAnimationFrame(animate);
+    }
+
+    function onMove(event) {
+      mouseX = event.clientX;
+      mouseY = event.clientY;
+      document.body.classList.add("cursor-active");
+    }
+
+    function onLeave() {
+      document.body.classList.remove("cursor-active");
+    }
+
+    const interactive = document.querySelectorAll("a, button, .tilt-card, .theme-swatch, .project-rail__item, .slider-dot");
+
+    function growCursor() {
+      ring.classList.add("is-hovering");
+    }
+
+    function shrinkCursor() {
+      ring.classList.remove("is-hovering");
+    }
+
+    interactive.forEach((item) => {
+      item.addEventListener("mouseenter", growCursor);
+      item.addEventListener("mouseleave", shrinkCursor);
+    });
+
+    window.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseleave", onLeave);
+    animate();
+
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseleave", onLeave);
+      interactive.forEach((item) => {
+        item.removeEventListener("mouseenter", growCursor);
+        item.removeEventListener("mouseleave", shrinkCursor);
+      });
+      window.cancelAnimationFrame(frameId);
     };
   }, []);
 
@@ -302,6 +397,14 @@ function App() {
     setTheme(themes[(currentIndex + 1) % themes.length]);
   };
 
+  const toggleMenu = () => {
+    setMenuOpen((current) => !current);
+  };
+
+  const closeMenu = () => {
+    setMenuOpen(false);
+  };
+
   const nextProject = () => {
     setActiveProject((current) => (current + 1) % projects.length);
   };
@@ -312,6 +415,8 @@ function App() {
 
   return (
     <>
+      <div className="cursor-dot" ref={cursorDotRef} aria-hidden="true" />
+      <div className="cursor-ring" ref={cursorRingRef} aria-hidden="true" />
       <canvas className="orbital-canvas" ref={canvasRef} aria-hidden="true" />
       <div className="noise-layer" aria-hidden="true" />
 
@@ -324,27 +429,45 @@ function App() {
           </div>
         </div>
 
-        <nav className="site-nav" aria-label="Primary">
-          <a href="#home">Home</a>
-          <a href="#about">About</a>
-          <a href="#services">Services</a>
-          <a href="#portfolio">Projects</a>
-          <a href="#sap-journey">SAP Journey</a>
-          <a href="#contact">Contact</a>
+        <button
+          className={`menu-toggle ${menuOpen ? "is-open" : ""}`}
+          type="button"
+          onClick={toggleMenu}
+          aria-expanded={menuOpen}
+          aria-label="Toggle navigation menu"
+        >
+          <span />
+          <span />
+          <span />
+        </button>
+
+        <nav className={`site-nav ${menuOpen ? "is-open" : ""}`} aria-label="Primary">
+          <a href="#home" onClick={closeMenu}>Home</a>
+          <a href="#about" onClick={closeMenu}>About</a>
+          <a href="#services" onClick={closeMenu}>Services</a>
+          <a href="#portfolio" onClick={closeMenu}>Projects</a>
+          <a href="#sap-journey" onClick={closeMenu}>SAP Journey</a>
+          <a href="#contact" onClick={closeMenu}>Contact</a>
         </nav>
 
         <div className="header-actions">
           <button className="theme-toggle" type="button" onClick={nextTheme}>
             Theme
           </button>
-          <a className="button button--ghost" href="#contact">
+          <a className="button button--ghost" href="#contact" onClick={closeMenu}>
             Hire Me
           </a>
         </div>
       </header>
 
+      <div
+        className={`nav-backdrop ${menuOpen ? "is-open" : ""}`}
+        aria-hidden="true"
+        onClick={closeMenu}
+      />
+
       <main>
-        <section className="hero section" id="home">
+        <section className="hero section" id="home" ref={heroRef}>
           <div className="hero-copy reveal">
             <p className="eyebrow">Full Stack Developer Portfolio</p>
             <h2>Full stack developer building modern web UI today and growing into SAP full stack development.</h2>
@@ -375,6 +498,9 @@ function App() {
           </div>
 
           <div className="hero-visual reveal">
+            <div className="hero-orb hero-orb--one" data-parallax="-0.05" />
+            <div className="hero-orb hero-orb--two" data-parallax="-0.08" />
+
             <div className="glass-card profile-card float-card">
               <div className="profile-card__top">
                 <span className="chip">Available for opportunities</span>
@@ -402,13 +528,13 @@ function App() {
               </div>
             </div>
 
-            <div className="floating-panel panel-left glass-card">
+            <div className="floating-panel panel-left glass-card" data-parallax="-0.04">
               <p>Featured Project</p>
               <strong>{currentProject.title}</strong>
               <span>{currentProject.label}</span>
             </div>
 
-            <div className="floating-panel panel-right glass-card">
+            <div className="floating-panel panel-right glass-card" data-parallax="-0.06">
               <p>Career Goal</p>
               <strong>SAP Full Stack Developer</strong>
               <span>ABAP + UI5 + Fiori + web development</span>
@@ -580,6 +706,10 @@ function App() {
           <div className="section-heading">
             <p className="eyebrow">SAP Journey</p>
             <h2>My roadmap from web full stack development to SAP UI5 and Fiori development</h2>
+          </div>
+
+          <div className="airplane-trail" aria-hidden="true">
+            <span className="airplane-icon">✈</span>
           </div>
 
           <div className="roadmap-grid">
